@@ -1,0 +1,16 @@
+{% import 'macros/form.html' as form %}
+
+{% block form %}
+    {{
+        form.input('width', label=_('Width'), value=resource_view['width'])
+    }}
+
+    {{
+        form.input('height', label=_('Height'), value=resource_view['height'])
+    }}
+
+    {{
+        form.select('color', label=_('Color palette'), options=colors,
+            selected=resource_view['color'], is_required=true)
+    }}
+{% endblock %}

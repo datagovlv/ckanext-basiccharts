@@ -1,0 +1,166 @@
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<script src="https://d3js.org/d3-hexbin.v0.2.min.js"></script>
+<script src="https://cdn.rawgit.com/eligrey/FileSaver.js/e9d941381475b5df8b7d7691013401e171014e89/FileSaver.min.js"></script>
+{% resource 'basiccharts/main' %}
+
+<div class="actions" style="float: left; position: relative;">
+	<a class="btn btn-default"
+	 href="#dwn-{{ resource_view['id'] }}"
+	 data-module="resource-download"
+	 data-module-target="svg"
+	 data-module-resource-id="{{ resource_view.id }}">
+	<i class="fa fa-download"></i>
+	{{ _("SVG") }}
+	</a>
+	<a class="btn btn-default"
+	 href="#dwn-{{ resource_view['id'] }}"
+	 data-module="resource-download"
+	 data-module-target="png"
+	 data-module-resource-id="{{ resource_view.id }}">
+	<i class="fa fa-download"></i>
+	{{ _("PNG") }}
+	</a>
+	<a class="btn btn-default"
+	 href="#dwn-{{ resource_view['id'] }}"
+	 data-module="resource-download"
+	 data-module-target="json"
+	 data-module-resource-id="{{ resource_view.id }}">
+	<i class="fa fa-download"></i>
+	{{ _("JSON") }}
+	</a>
+</div>
+<div class="actions" style="float: right; position: relative;">
+	<input id='upload-svg-{{ resource_view.id }}' type='file' accept='.svg' hidden class='hidden' data-module='resource-upload' data-module-target="svg" data-module-resource-id="{{ resource_view.id }}"/>
+		<a class="btn btn-default"
+	 href="#dwn-{{ resource_view['id'] }}"
+	 data-module="resource-upload"
+	 data-module-target="svg"
+	 data-module-resource-id="{{ resource_view.id }}">
+	<i class="fa fa-upload"></i>
+	{{ _("SVG") }}
+	</a>
+	<input id='upload-json-{{ resource_view.id }}' type='file' accept='.json' hidden class='hidden' data-module='resource-upload' data-module-target="json" data-module-resource-id="{{ resource_view.id }}"/>
+	<a class="btn btn-default"
+	 href="#dwn-{{ resource_view['id'] }}"
+	 data-module="resource-upload"
+	 data-module-target="json"
+	 data-module-resource-id="{{ resource_view.id }}">
+	<i class="fa fa-upload"></i>
+	{{ _("JSON") }}
+	</a>
+</div>
+<div class="clearfix"></div>
+<div
+  data-module = "basiccharts_view"
+  data-module-chart-type = "{{ chart_type }}"
+  data-module-resource-id = "{{ resource.id }}"
+  data-module-resource-view = "{{ h.dump_json(resource_view) }}"
+  id = "basicChart-{{ resource_view.id }}"
+  class = "basicChart {{ chart_type }}"
+  >
+</div>
+
+<script>
+	$(function(){
+		function getSvgXml(viewId){
+			var svg = getSvgElement(viewId);
+			var serializer = new XMLSerializer();
+			var source = serializer.serializeToString(svg);
+			if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+			    source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+			}
+			if(!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)){
+			    source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+			}
+			source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+
+			return source;
+		}
+
+		function getSvgElement(viewId){
+			return document.querySelector("#basicChart-" + viewId + " > svg");
+		}
+
+		$("a[data-module=resource-download]").click(function(){
+			var target = $(this).attr("data-module-target");
+			if(target == "svg"){
+				var source = getSvgXml($(this).attr("data-module-resource-id"));
+
+				var url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+				var downloadLink = document.createElement("a");
+				downloadLink.href = url;
+				downloadLink.download = $(this).attr("data-module-resource-id") + ".svg";
+				document.body.appendChild(downloadLink);
+				downloadLink.click();
+				document.body.removeChild(downloadLink);
+			} else if(target == "png") {
+				var resId = $(this).attr("data-module-resource-id");
+				var svg = getSvgElement(resId);
+				var format = 'png';
+				var width = svg.clientWidth * 2;
+				var height = svg.clientHeight * 2;
+				var imgsrc = 'data:image/svg+xml;base64,'+ btoa(unescape(encodeURIComponent(getSvgXml(resId)))); 
+				var canvas = document.createElement("canvas");
+				var context = canvas.getContext("2d");
+				canvas.width = width;
+				canvas.height = height;
+				var image = new Image();
+				image.onload = function() {
+					context.clearRect (0, 0, width, height );
+					context.drawImage(image, 0, 0, width, height);
+					canvas.toBlob( function(blob) {
+						var filesize = Math.round( blob.length/1024 ) + ' KB';
+						saveAs(blob, resId + ".png");
+					});
+				};
+				image.src = imgsrc;
+			} else if(target == "json"){
+				var resId = $(this).attr("data-module-resource-id");
+				var json = ckan.views.basiccharts.actualData;
+				var jsonse = JSON.stringify(json);
+				var blob = new Blob([jsonse], {type: "application/json"});
+				saveAs(blob, resId + ".json");
+			}
+
+			return false;
+		});
+
+		$("a[data-module=resource-upload]").click(function(){
+			var target = $(this).attr("data-module-target");
+			var resId = $(this).attr("data-module-resource-id");
+
+			$("input[data-module=resource-upload]#upload-" + target + "-" + resId).click();
+		});
+
+		$("input[data-module=resource-upload]").change(function(){
+			var $input = $(this);
+		    var target = $input.attr("data-module-target");
+		    var inputFiles = this.files;
+		    if(inputFiles == undefined || inputFiles.length == 0) return;
+		    var inputFile = inputFiles[0];
+		    var reader = new FileReader();
+
+		    if(target == "svg"){
+			    reader.onload = function(event) {
+			    	//if($("#uploadPreview-" + $input.attr('data-module-resource-id')).length == 0){
+			    		$('<img/>', {
+		    				//id: "uploadPreview-" + $input.attr('data-module-resource-id')
+		    				src: event.target.result
+						}).appendTo("#basicChart-" + $input.attr('data-module-resource-id'));
+			    	//}
+		    		//$("#uploadPreview-" + $input.attr('data-module-resource-id')).attr('src', event.target.result);
+			    };
+			    reader.readAsDataURL(inputFile);
+		    } else if(target == "json"){
+				reader.onload = function(event) {
+					var json = JSON.parse(event.target.result);
+					ckan.views.basiccharts.actualData = json;
+					ckan.views.basiccharts.redrawGraph();
+				};
+				reader.readAsText(inputFile);
+		    }
+
+		    
+		});
+	});
+</script>
